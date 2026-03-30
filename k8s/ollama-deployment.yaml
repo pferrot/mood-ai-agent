@@ -1,0 +1,65 @@
+# Ollama deployment for running Qwen (qwen3.5:9b) locally inside the cluster.
+# GPU node affiliation and resource limits should be adjusted to your cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  labels:
+    app: ollama
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: ollama-data
+              mountPath: /root/.ollama
+          resources:
+            requests:
+              cpu: "2"
+              memory: "8Gi"
+            limits:
+              cpu: "4"
+              memory: "16Gi"
+              # Uncomment if GPU nodes are available:
+              # nvidia.com/gpu: "1"
+      volumes:
+        - name: ollama-data
+          persistentVolumeClaim:
+            claimName: ollama-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  labels:
+    app: ollama
+spec:
+  selector:
+    app: ollama
+  ports:
+    - name: ollama
+      port: 11434
+      targetPort: 11434
+  type: ClusterIP
