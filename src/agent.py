@@ -1,9 +1,11 @@
+import asyncio
+
 from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from langgraph.graph.state import CompiledStateGraph
 
 from .config import settings
-from .tools import get_tools
+from .tools import get_mcp_tools
 
 SYSTEM_PROMPT = (
     "You are a mood analysis expert. Given a person's text input, evaluate their "
@@ -12,7 +14,7 @@ SYSTEM_PROMPT = (
 )
 
 
-def build_agent() -> CompiledStateGraph:
+async def build_agent() -> CompiledStateGraph:
     model = ChatOllama(
         model=settings.model_name,
         base_url=settings.ollama_base_url,
@@ -20,27 +22,32 @@ def build_agent() -> CompiledStateGraph:
         reasoning=settings.enable_reasoning,
     )
 
+    tools = await get_mcp_tools()
+
     return create_agent(
         model=model,
-        tools=get_tools(),
+        tools=tools,
         system_prompt=SYSTEM_PROMPT,
         debug=settings.agent_verbose,
     )
 
 
 _agent: CompiledStateGraph | None = None
+_agent_lock = asyncio.Lock()
 
 
-def get_agent() -> CompiledStateGraph:
+async def get_agent() -> CompiledStateGraph:
     global _agent
     if _agent is None:
-        _agent = build_agent()
+        async with _agent_lock:
+            if _agent is None:
+                _agent = await build_agent()
     return _agent
 
 
-def analyze_mood(text: str) -> str:
+async def analyze_mood(text: str) -> str:
     config = {"recursion_limit": settings.agent_max_iterations}
-    result = get_agent().invoke(
+    result = await (await get_agent()).ainvoke(
         {"messages": [{"role": "user", "content": text}]},
         config=config,
     )

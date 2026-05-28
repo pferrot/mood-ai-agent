@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
     log_level: str = "info"
+    # MCP server configs keyed by server name.
+    # Each value must be a valid MultiServerMCPClient connection dict.
+    # Example (JSON): {"myserver": {"transport": "http", "url": "http://localhost:9000/mcp"}}
+    mcp_servers: dict = {}
 
     model_config = {
         "env_file": ".env",

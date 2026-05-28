@@ -1,5 +1,6 @@
 import logging
 import warnings
+from contextlib import asynccontextmanager
 
 # langchain_core imports pydantic.v1 shims that are broken on Python 3.14+
 warnings.filterwarnings(
@@ -13,7 +14,7 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .agent import analyze_mood
+from .agent import analyze_mood, get_agent
 from .config import settings
 
 logging.basicConfig(level=settings.log_level.upper())  # stdlib expects uppercase
@@ -24,10 +25,21 @@ if settings.log_level.upper() == "DEBUG":
     logging.getLogger("httpx").setLevel(logging.DEBUG)
     logging.getLogger("httpcore").setLevel(logging.DEBUG)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Pre-warm the agent (and connect to MCP servers) before serving traffic.
+    logger.info("Initializing agent and connecting to MCP servers...")
+    await get_agent()
+    logger.info("Agent ready.")
+    yield
+
+
 app = FastAPI(
     title="Mood AI Agent",
     description="Evaluates the mood of a person given a text input.",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -46,11 +58,11 @@ def health_check():
 
 
 @app.post("/analyze", response_model=MoodResponse)
-def analyze(request: MoodRequest):
+async def analyze(request: MoodRequest):
     if not request.text.strip():
         raise HTTPException(status_code=422, detail="Input text must not be empty.")
     logger.info("Analyzing mood for input: %s", request.text[:80])
-    mood = analyze_mood(request.text)
+    mood = await analyze_mood(request.text)
     return MoodResponse(input=request.text, mood=mood)
 
 
