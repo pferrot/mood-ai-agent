@@ -12,6 +12,8 @@ POST /analyze
      │
      ▼
  FastAPI app  ──►  LangChain agent  ──►  Ollama (Qwen)  ──►  mood string (≤20 words)
+                         │
+                         └── optional MCP tools, e.g. current weather
 ```
 
 ---
@@ -59,6 +61,13 @@ The API is available at `http://localhost:8000`.
 curl -X POST http://localhost:8000/analyze \
   -H "Content-Type: application/json" \
   -d '{"text": "I had the most amazing day, everything went perfectly!"}'
+```
+
+To trigger call to [Weather MCP server](https://github.com/pferrot/weather-mcp-server), if configured:
+```bash
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"text":"I spent the day walking around Lausanne."}'
 ```
 
 ---
@@ -152,6 +161,18 @@ All settings are controlled via environment variables (or `.env`):
 | `APP_HOST`             | `0.0.0.0`                  | Bind address                                             |
 | `APP_PORT`             | `8000`                     | Bind port                                                |
 | `LOG_LEVEL`            | `info`                     | Log level — set to `debug` to trace raw Ollama HTTP calls|
+| `MCP_SERVERS`          | `{}`                       | Optional MCP tool servers as JSON                        |
+
+When an MCP server provides current weather tools, the agent can use weather as
+a mild mood signal when the input mentions a location. The agent still works
+without any MCP servers configured, and continues without external tools if they
+cannot be loaded.
+
+Example Weather MCP server configuration:
+
+```env
+MCP_SERVERS={"weather": {"transport": "http", "url": "http://localhost:8001/mcp"}}
+```
 
 ### Debugging in LangChain v1
 
